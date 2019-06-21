@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+excludeFileTypes="\.(ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
+answerColor="\033[35m"
+titleColor="\033[37;44m"
+#3133373632
+perColorBelowOne="\033[31m"
+perColorBelowTen="\033[33m"
+perColorBelowFifty="\033[37m"
+perColorBelowSeventyFive="\033[36m"
+perColorUpToHundred="\033[32m"
+reset="\033[0m"
+
+echo -e "Running full report, this process could take some time..."
+echo -e "Please be patient..."
+echo ""
+
+numberOfFiles=$(git ls-files | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
+gitFiles=$(git ls-files | grep -vE "${excludeFileTypes}")
+justG=""
+excludedFiles=$(git ls-files | grep -E "${excludeFileTypes}")
+numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
+numberOfCommittsTotal=$(git rev-list --count HEAD)
+echo -e "Number of files in Project:  ${answerColor}${numberOfFiles}${reset}"
+echo -e "Number of excluded files in Project: ${answerColor}${numberOfExcludedFiles}${reset} - ${excludeFileTypes}"
+echo -e "Number of committs in the Project: ${answerColor}${numberOfCommittsTotal}${reset}"
+
+linesOfCode=$(echo "$gitFiles" | while read f; do git blame --line-porcelain $f | grep '^author '; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
+
+declare -A emailsToCommits
+# email = commits
+declare -A emailToNames
+# email = names
+declare -a justNumbers
+# nums
+committSummary=$(git shortlog --summary --numbered --email)
+while IFS= read line
+do
+	commits=$(echo "$line" | awk '{print $1}' | sed 's/[[:space:]]//g')
+	author=$(echo "$line" | awk '{print $2}' | sed 's/[[:space:]]//g')
+	fullName=$(echo "$line" | sed 's/<\(.*\)>//g' | awk '{for (i=2; i<NF; i++) printf $i " "; print $NF}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+	email=$(echo "$line" | sed 's/.*<\(.*\)>/\1/'| sed 's/[[:space:]]//g')
+	email=$(echo "$email" | tr '[:upper:]' '[:lower:]')
+	if [[ "${emailToNames[$email]+isset}" ]]; then
+		curName=$(tr -d '[]' <<< "${emailToNames[$email]}")
+		nextName="$curName:::$fullName"
+		emailToNames+=(["$email"]=["$nextName"])
+	else
+		dealt=0
+		for q in "${!emailToNames[@]}"; do
+			standAloneNames=$(echo "${emailToNames[$q]}" | tr -d '[]' | sed 's/:::/, /g' )
+			if [[ "$standAloneNames" =~ $fullName ]]; then
+				curNames=$(tr -d '[]' <<< "${emailToNames[$q]}")
+				nextName="$curNames:::$fullName"
+				email="$q"
+				emailToNames+=(["$email"]=["$nextName"])
+				dealt=1
+			fi
+		done
+
+		if [[ "$dealt" -eq 0 ]]; then
+			emailToNames+=(["$email"]=["$fullName"])
+		fi
+	fi
+
+	if [[ "${emailsToCommits[$email]+isset}" ]]; then
+		current=$(tr -d '[]' <<< "${emailsToCommits[$email]}")
+		next=$(( $current + $commits))
+		emailsToCommits+=(["$email"]=["$next"])
+	else
+		emailsToCommits+=(["$email"]=["$commits"])
+	fi
+done <<< "$committSummary"
+
+for i in "${!emailsToCommits[@]}"; do
+	aa=$(echo "${emailsToCommits[$i]}" | tr -d '[]')
+	justNumbers+=("$aa")
+done
+
+IFS=$'\n' sorted=($(sort -rn <<<"${justNumbers[*]}"))
+unset IFS
+
+totalLinesOfCodeInProject=0
+while read -r cc; do
+	nn=$(echo "$cc" | awk '{print $1}')
+	totalLinesOfCodeInProject=$(( "$totalLinesOfCodeInProject" + "$nn" ))
+done <<< "$linesOfCode"
+echo -e "Number of lines of code in the Project: ${answerColor}${totalLinesOfCodeInProject}${reset}"
+echo ""
+
+for t in "${sorted[@]}"; do
+	for name in "${!emailToNames[@]}"; do
+
+		# This gets the commits part and checks against the number sorted
+		if [[ "${emailsToCommits[$name]}" == "[$t]" ]]; then
+
+			cleanName=$(echo "${emailToNames[$name]}" | tr -d '[]' | sed 's/:::/, /g' )
+			cleanCommitts=$(tr -d '[]' <<< "${emailsToCommits[$name]}")
+
+			#echo "scale=2; (a / b)*100 | bc -l"
+			# check if first char is dot if it is then 0 it
+
+			finalLines=0
+			while read -r line; do
+				justNameOfBlame=$(echo "$line" | awk '{for (i=2; i<NF; i++) printf $i " "; print $NF}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+				if [[ "$cleanName" =~ $justNameOfBlame ]]; then
+					justNumOfLines=$(echo "$line" | awk '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+					finalLines=$(( "$finalLines" + "$justNumOfLines" ))
+				fi
+			done <<< "$linesOfCode"
+
+			singleName=$(echo "$cleanName" | cut -f1 -d",")
+			#echo -e "${titleColor}${singleName}${reset}"
+			perCommitts=$(echo "scale=4; ($cleanCommitts / $numberOfCommittsTotal)*100" | bc -l)
+			if [[ ! "$perCommitts" == [0-9]* ]]; then perCommitts="0${perCommitts}"; fi
+			perLines=$(echo "scale=4; ($finalLines / $totalLinesOfCodeInProject)*100" | bc -l)
+			if [[ ! "$perLines" == [0-9]* ]]; then perLines="0${perLines}"; fi
+
+			commColor="$perColorUpToHundred"
+			if (( $(echo "$perCommitts < 1" | bc -l) )); then
+				commColor="$perColorBelowOne"
+			elif (( $(echo "$perCommitts < 10" | bc -l) )); then
+				commColor="$perColorBelowTen"
+			elif (( $(echo "$perCommitts < 50" | bc -l) )); then
+				commColor="$perColorBelowFifty"
+			elif (( $(echo "$perCommitts < 75" | bc -l) )); then
+				commColor="$perColorBelowSeventyFive"
+			else
+				commColor="$perColorUpToHundred"
+			fi
+
+			lineColor="$perColorUpToHundred"
+			if (( $(echo "$perLines < 1" | bc -l) )); then
+				lineColor="$perColorBelowOne"
+			elif (( $(echo "$perLines < 10" | bc -l) )); then
+				lineColor="$perColorBelowTen"
+			elif (( $(echo "$perLines < 50" | bc -l) )); then
+				lineColor="$perColorBelowFifty"
+			elif (( $(echo "$perLines < 75" | bc -l) )); then
+				lineColor="$perColorBelowSeventyFive"
+			else
+				lineColor="$perColorUpToHundred"
+			fi
+
+			echo -e "${titleColor}${singleName}${reset} : ${titleColor}${name}${reset}"
+			echo -e "Committs: ${answerColor}${cleanCommitts}${reset} (${commColor}${perCommitts}%${reset}) - Lines of code: ${answerColor}${finalLines}${reset} (${lineColor}${perLines}%${reset})"
+			echo ""
+			emailsToCommits[$name]="_"
+		fi
+	done
+done
+echo ""
