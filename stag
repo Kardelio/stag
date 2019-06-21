@@ -19,9 +19,7 @@ echo ""
 
 numberOfFiles=$(git ls-files | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
 gitFiles=$(git ls-files | grep -vE "${excludeFileTypes}")
-justG=""
-excludedFiles=$(git ls-files | grep -E "${excludeFileTypes}")
-numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
+numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || printf "0")
 numberOfCommittsTotal=$(git rev-list --count HEAD)
 echo -e "Number of files in Project:  ${answerColor}${numberOfFiles}${reset}"
 echo -e "Number of excluded files in Project: ${answerColor}${numberOfExcludedFiles}${reset} - ${excludeFileTypes}"
