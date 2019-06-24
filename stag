@@ -185,10 +185,11 @@ if [[ ! -z $res ]];then
 		done
 	done
 	jsonOut=$(echo "$jsonOut" | sed 's/\(.*\),/\1/')
-	jsonOut+="]"
+	jsonOut+="],"
+	timestamp=$(date "+%H:%M %d-%m-%y")
+	jsonOut+="\"time\":\"$timestamp\""
 	jsonOut+="}"
 	echo "$jsonOut" > "$jsonFile"
-
 	echo ""
 else
 	echo -e "\033[97;101mNot a git repo!\033[0m"
