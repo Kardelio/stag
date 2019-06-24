@@ -2,6 +2,23 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+showSpinner()
+{
+    local delay=0.25
+    local spinstr='|/-\'
+    while true; do
+        local temp=${spinstr#?}
+        printf " \033[30;105m[%c]\033[0m  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+}
+
+hideSpinner(){
+	printf "\b\b\b\b\b\b"
+}
+
 excludeFileTypes="\.(ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
 answerColor="\033[35m"
 titleColor="\033[37;44m"
@@ -12,20 +29,32 @@ perColorBelowFifty="\033[37m"
 perColorBelowSeventyFive="\033[36m"
 perColorUpToHundred="\033[32m"
 reset="\033[0m"
+jsonFile="$HOME/$(basename "$PWD").stag.json"
+jsonOut="{"
 
 echo -e "Running full report, this process could take some time..."
 echo -e "Please be patient..."
+echo -e "Saving the JSON output to $jsonFile"
 echo ""
 
 numberOfFiles=$(git ls-files | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
 gitFiles=$(git ls-files | grep -vE "${excludeFileTypes}")
-numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || printf "0")
+numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || echo -n "")
 numberOfCommittsTotal=$(git rev-list --count HEAD)
 echo -e "Number of files in Project:  ${answerColor}${numberOfFiles}${reset}"
 echo -e "Number of excluded files in Project: ${answerColor}${numberOfExcludedFiles}${reset} - ${excludeFileTypes}"
 echo -e "Number of committs in the Project: ${answerColor}${numberOfCommittsTotal}${reset}"
 
+jsonOut+="\"files\":\"$numberOfFiles\","
+jsonOut+="\"excludedFiles\":\"$numberOfExcludedFiles\","
+jsonOut+="\"committs\":\"$numberOfCommittsTotal\","
+jsonOut+="\"users\": ["
+
+showSpinner &
+BG_PID=$!
 linesOfCode=$(echo "$gitFiles" | while read f; do git blame --line-porcelain $f | grep '^author '; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
+kill $BG_PID
+hideSpinner
 
 declare -A emailsToCommits
 # email = commits
@@ -108,6 +137,7 @@ for t in "${sorted[@]}"; do
 					finalLines=$(( "$finalLines" + "$justNumOfLines" ))
 				fi
 			done <<< "$linesOfCode"
+			
 
 			singleName=$(echo "$cleanName" | cut -f1 -d",")
 			#echo -e "${titleColor}${singleName}${reset}"
@@ -145,8 +175,22 @@ for t in "${sorted[@]}"; do
 			echo -e "${titleColor}${singleName}${reset} : ${titleColor}${name}${reset}"
 			echo -e "Committs: ${answerColor}${cleanCommitts}${reset} (${commColor}${perCommitts}%${reset}) - Lines of code: ${answerColor}${finalLines}${reset} (${lineColor}${perLines}%${reset})"
 			echo ""
+
+			jsonOut+="{\"names\": [ \"$cleanName\" ],"
+			jsonOut+="\"email\": \"$name\","
+			jsonOut+="\"committs\": \"$cleanCommitts\","
+			jsonOut+="\"committsPercent\": \"$perCommitts\","
+			jsonOut+="\"lines\": \"$finalLines\","
+			jsonOut+="\"linesPercent\": \"$perLines\"},"
+
 			emailsToCommits[$name]="_"
 		fi
 	done
 done
+jsonOut=$(echo "$jsonOut" | sed 's/\(.*\),/\1/')
+#JSON
+jsonOut+="]"
+jsonOut+="}"
+echo "$jsonOut" > "$jsonFile"
+
 echo ""
