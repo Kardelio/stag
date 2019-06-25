@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
+TOP_PID=$$
+
+user_interrupt(){
+	kill $BG_PID
+	kill $TOP_PID
+	hideSpinner
+	exit 1
+}
+
+trap user_interrupt SIGINT
+trap user_interrupt SIGTSTP
+
+err_report(){
+	echo "Error on line $1"
+	kill $BG_PID
+	kill $TOP_PID
+	hideSpinner
+	exit 1
+}
+trap 'err_report $LINENO' ERR
 
 showSpinner()
 {
@@ -55,7 +75,7 @@ if [[ ! -z $res ]];then
 
 	showSpinner &
 	BG_PID=$!
-	linesOfCode=$(echo "$gitFiles" | while read f; do git blame --line-porcelain $f | grep '^author '; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
+	linesOfCode=$(echo "$gitFiles" | while read f; do git blame --line-porcelain $f | grep '^author ' | grep -v "Not Committed Yet"; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
 	kill $BG_PID
 	hideSpinner
 
