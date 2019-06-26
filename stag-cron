@@ -1,0 +1,3 @@
+#!/usr/local/bin/bash
+/usr/local/bin/bash /Users/automation/stag/jenk-stag "epic/navigation" "android"
+/usr/local/bin/bash /Users/automation/stag/jenk-stag "develop" "ios"

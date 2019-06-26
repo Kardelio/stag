@@ -1,28 +1,8 @@
-#!/usr/bin/env bash
+#!/usr/local/bin/bash
 #
 # This stag should be called from an API and it's output is the response
 #
 IFS=$'\n\t'
-TOP_PID=$$
-
-user_interrupt(){
-	kill $BG_PID
-	kill $TOP_PID
-	hideSpinner
-	exit 1
-}
-
-trap user_interrupt SIGINT
-trap user_interrupt SIGTSTP
-
-err_report(){
-	echo "Error on line $1"
-	kill $BG_PID
-	kill $TOP_PID
-	hideSpinner
-	exit 1
-}
-trap 'err_report $LINENO' ERR
 
 excludeFileTypes="\.(ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
 
@@ -66,10 +46,10 @@ fi
 if [[ ! -z "$cddir" ]]; then
 	if [[ "$ostype" == "android" ]]; then
 		cd "$cddir@2/$andDir"
-		jsonFile="$andDir.stag.json"
+		jsonFile="$HOME/$andDir.stag.json"
 	elif [[ "$ostype" == "ios" ]]; then
 		cd "$cddir@2/$iosDir"
-		jsonFile="$iosDir.stag.json"
+		jsonFile="$HOME/$iosDir.stag.json"
 	else
 		echo "ERROR"
 	fi
@@ -84,6 +64,8 @@ if [[ ! -z $res ]];then
 	numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || echo -n "")
 	numberOfCommittsTotal=$(git rev-list --count HEAD)
 
+	jsonOut+="\"branch\":\"$branch\","
+	jsonOut+="\"os\":\"$ostype\","
 	jsonOut+="\"files\":\"$numberOfFiles\","
 	jsonOut+="\"excludedFiles\":\"$numberOfExcludedFiles\","
 	jsonOut+="\"committs\":\"$numberOfCommittsTotal\","
@@ -91,10 +73,11 @@ if [[ ! -z $res ]];then
 
 	linesOfCode=$(echo "$gitFiles" | while read f; do if [ -s $f ]; then git blame --line-porcelain $f | grep '^author ' | grep -v "Not Committed Yet"; fi; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
 
-	declare -A emailsToCommits
-	declare -A emailToNames
+	declare -A emailsToCommits=()
+	declare -A emailToNames=()
 	declare -a justNumbers
-	committSummary=$(git shortlog --summary --numbered --email)
+	committSummary=$(git shortlog HEAD --numbered --email --summary)
+
 	while IFS= read line
 	do
 		commits=$(echo "$line" | awk '{print $1}' | sed 's/[[:space:]]//g')
@@ -102,6 +85,7 @@ if [[ ! -z $res ]];then
 		fullName=$(echo "$line" | sed 's/<\(.*\)>//g' | awk '{for (i=2; i<NF; i++) printf $i " "; print $NF}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 		email=$(echo "$line" | sed 's/.*<\(.*\)>/\1/'| sed 's/[[:space:]]//g')
 		email=$(echo "$email" | tr '[:upper:]' '[:lower:]')
+
 		if [[ "${emailToNames[$email]+isset}" ]]; then
 			curName=$(tr -d '[]' <<< "${emailToNames[$email]}")
 			nextName="$curName:::$fullName"
@@ -150,12 +134,9 @@ if [[ ! -z $res ]];then
 	for t in "${sorted[@]}"; do
 		for name in "${!emailToNames[@]}"; do
 
-			# This gets the commits part and checks against the number sorted
 			if [[ "${emailsToCommits[$name]}" == "[$t]" ]]; then
-
 				cleanName=$(echo "${emailToNames[$name]}" | tr -d '[]' | sed 's/:::/, /g' )
 				cleanCommitts=$(tr -d '[]' <<< "${emailsToCommits[$name]}")
-
 				finalLines=0
 				while read -r line; do
 					justNameOfBlame=$(echo "$line" | awk '{for (i=2; i<NF; i++) printf $i " "; print $NF}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
