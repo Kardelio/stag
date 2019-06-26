@@ -4,3 +4,5 @@
 2. find for mac / linux works differently, handle this
 
 3. random terminated error on raspberry pi
+
+4. has problems with empty files
