@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+#
+# This stag should be called from an API and it's output is the response
+#
 IFS=$'\n\t'
 TOP_PID=$$
 
@@ -22,23 +24,6 @@ err_report(){
 }
 trap 'err_report $LINENO' ERR
 
-showSpinner()
-{
-    local delay=0.25
-    local spinstr='|/-\'
-    while true; do
-        local temp=${spinstr#?}
-        printf " \033[30;105m[%c]\033[0m  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-}
-
-hideSpinner(){
-	printf "\b\b\b\b\b\b"
-}
-
 excludeFileTypes="\.(ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
 
 answerColor="\033[35m"
@@ -50,44 +35,61 @@ perColorBelowSeventyFive="\033[36m"
 perColorUpToHundred="\033[32m"
 reset="\033[0m"
 
-jsonFile="$HOME/$(basename "$PWD").stag.json"
+jenkinsArea="$HOME/.jenkins/workspace"
+indexFile="workspaces.txt"
+cleanIndexFile="clean_workspaces.txt"
+iosDir="emar-myvery_ios"
+andDir="emar-myvery_android"
+
+if [ -z "$1" ]; then
+	echo -e "\033[97;101mNo branch supplied\033[0m"
+	exit 1
+fi
+
+if [ -z "$2" ]; then
+	echo -e "\033[97;101mNo OS supplied\033[0m"
+	exit 1
+fi
+
+branch="$1"
+ostype="$2"
+
+cd "$jenkinsArea" || exit 1
+sed 's/%2F/\//g' "$indexFile" > "$cleanIndexFile"
+
+if [[ "$ostype" == "android" ]]; then
+	cddir=$(cat clean_workspaces.txt | grep "emar_myvery_android/$branch" -A 1 | tail -n 1)
+else
+	cddir=$(cat clean_workspaces.txt | grep "emar_myvery_ios/$branch" -A 1 | tail -n 1)
+fi
+
+if [[ ! -z "$cddir" ]]; then
+	if [[ "$ostype" == "android" ]]; then
+		cd "$cddir@2/$andDir"
+		jsonFile="$andDir.stag.json"
+	elif [[ "$ostype" == "ios" ]]; then
+		cd "$cddir@2/$iosDir"
+		jsonFile="$iosDir.stag.json"
+	else
+		echo "ERROR"
+	fi
+fi
 
 res=$(find . -name ".git" -maxdepth 1)
 if [[ ! -z $res ]];then
 	jsonOut="{"
-	echo -en "\033[93m"
-	echo ' ____  _              '
-	echo '/ ___|| |_ __ _  __ _ '
-	echo '\___ \| __/ _` |/ _` |'
-	echo ' ___) | || (_| | (_| |'
-	echo '|____/ \__\__,_|\__, |'
-	echo '                |___/ '
-	echo -en "\033[0m"
-	echo -en "\033[32m"
-	echo -e "Running full report, this process could take some time..."
-	echo -e "Please be patient..."
-	echo -e "Saving the JSON output to $jsonFile"
-	echo -en "\033[0m"
-	echo ""
 
 	numberOfFiles=$(git ls-files | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
 	gitFiles=$(git ls-files | grep -vE "${excludeFileTypes}")
 	numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || echo -n "")
 	numberOfCommittsTotal=$(git rev-list --count HEAD)
-	echo -e "Number of files in Project:  ${answerColor}${numberOfFiles}${reset}"
-	echo -e "Number of excluded files in Project: ${answerColor}${numberOfExcludedFiles}${reset} - ${excludeFileTypes}"
-	echo -e "Number of committs in the Project: ${answerColor}${numberOfCommittsTotal}${reset}"
 
 	jsonOut+="\"files\":\"$numberOfFiles\","
 	jsonOut+="\"excludedFiles\":\"$numberOfExcludedFiles\","
 	jsonOut+="\"committs\":\"$numberOfCommittsTotal\","
 	jsonOut+="\"users\": ["
 
-	showSpinner &
-	BG_PID=$!
 	linesOfCode=$(echo "$gitFiles" | while read f; do if [ -s $f ]; then git blame --line-porcelain $f | grep '^author ' | grep -v "Not Committed Yet"; fi; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
-	kill $BG_PID
-	hideSpinner
 
 	declare -A emailsToCommits
 	declare -A emailToNames
@@ -144,8 +146,6 @@ if [[ ! -z $res ]];then
 		nn=$(echo "$cc" | awk '{print $1}')
 		totalLinesOfCodeInProject=$(( "$totalLinesOfCodeInProject" + "$nn" ))
 	done <<< "$linesOfCode"
-	echo -e "Number of lines of code in the Project: ${answerColor}${totalLinesOfCodeInProject}${reset}"
-	echo ""
 
 	for t in "${sorted[@]}"; do
 		for name in "${!emailToNames[@]}"; do
@@ -167,7 +167,6 @@ if [[ ! -z $res ]];then
 				
 
 				singleName=$(echo "$cleanName" | cut -f1 -d",")
-				#echo -e "${titleColor}${singleName}${reset}"
 				perCommitts=$(echo "scale=4; ($cleanCommitts / $numberOfCommittsTotal)*100" | bc -l)
 				if [[ ! "$perCommitts" == [0-9]* ]]; then perCommitts="0${perCommitts}"; fi
 				perLines=$(echo "scale=4; ($finalLines / $totalLinesOfCodeInProject)*100" | bc -l)
@@ -199,10 +198,6 @@ if [[ ! -z $res ]];then
 					lineColor="$perColorUpToHundred"
 				fi
 
-				echo -e "${titleColor}${singleName}${reset} : ${titleColor}${name}${reset}"
-				echo -e "Committs: ${answerColor}${cleanCommitts}${reset} (${commColor}${perCommitts}%${reset}) - Lines of code: ${answerColor}${finalLines}${reset} (${lineColor}${perLines}%${reset})"
-				echo ""
-
 				jsonOut+="{\"names\": [ \"$cleanName\" ],"
 				jsonOut+="\"email\": \"$name\","
 				jsonOut+="\"committs\": \"$cleanCommitts\","
@@ -220,7 +215,7 @@ if [[ ! -z $res ]];then
 	jsonOut+="\"time\":\"$timestamp\""
 	jsonOut+="}"
 	echo "$jsonOut" > "$jsonFile"
-	echo ""
+	echo "$jsonOut"
 else
 	echo -e "\033[97;101mNot a git repo!\033[0m"
 	exit 1

@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "Starting the stag service"
+/usr/bin/php -S 0.0.0.0:8078 -t /Users/automation/stag/ &

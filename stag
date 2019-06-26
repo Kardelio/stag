@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#
+# This stag can be run from the terminal in the specific folder
+#
 set -euo pipefail
 IFS=$'\n\t'
 TOP_PID=$$
