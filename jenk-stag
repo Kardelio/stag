@@ -69,7 +69,6 @@ if [[ ! -z $res ]];then
 	jsonOut+="\"files\":\"$numberOfFiles\","
 	jsonOut+="\"excludedFiles\":\"$numberOfExcludedFiles\","
 	jsonOut+="\"committs\":\"$numberOfCommittsTotal\","
-	jsonOut+="\"users\": ["
 
 	linesOfCode=$(echo "$gitFiles" | while read f; do if [ -s $f ]; then git blame --line-porcelain $f | grep '^author ' | grep -v "Not Committed Yet"; fi; done | sort -f | uniq -ic | sort -rn | sed 's/author//g')
 
@@ -130,6 +129,8 @@ if [[ ! -z $res ]];then
 		nn=$(echo "$cc" | awk '{print $1}')
 		totalLinesOfCodeInProject=$(( "$totalLinesOfCodeInProject" + "$nn" ))
 	done <<< "$linesOfCode"
+	jsonOut+="\"totalLines\":\"$totalLinesOfCodeInProject\","
+	jsonOut+="\"users\": ["
 
 	for t in "${sorted[@]}"; do
 		for name in "${!emailToNames[@]}"; do
@@ -179,7 +180,7 @@ if [[ ! -z $res ]];then
 					lineColor="$perColorUpToHundred"
 				fi
 
-				jsonOut+="{\"names\": [ \"$cleanName\" ],"
+				jsonOut+="{\"names\": \"$cleanName\","
 				jsonOut+="\"email\": \"$name\","
 				jsonOut+="\"committs\": \"$cleanCommitts\","
 				jsonOut+="\"committsPercent\": \"$perCommitts\","

@@ -84,7 +84,6 @@ if [[ ! -z $res ]];then
 	jsonOut+="\"files\":\"$numberOfFiles\","
 	jsonOut+="\"excludedFiles\":\"$numberOfExcludedFiles\","
 	jsonOut+="\"committs\":\"$numberOfCommittsTotal\","
-	jsonOut+="\"users\": ["
 
 	showSpinner &
 	BG_PID=$!
@@ -148,6 +147,8 @@ if [[ ! -z $res ]];then
 		totalLinesOfCodeInProject=$(( "$totalLinesOfCodeInProject" + "$nn" ))
 	done <<< "$linesOfCode"
 	echo -e "Number of lines of code in the Project: ${answerColor}${totalLinesOfCodeInProject}${reset}"
+	jsonOut+="\"totalLines\":\"$totalLinesOfCodeInProject\","
+	jsonOut+="\"users\": ["
 	echo ""
 
 	for t in "${sorted[@]}"; do
@@ -206,7 +207,7 @@ if [[ ! -z $res ]];then
 				echo -e "Committs: ${answerColor}${cleanCommitts}${reset} (${commColor}${perCommitts}%${reset}) - Lines of code: ${answerColor}${finalLines}${reset} (${lineColor}${perLines}%${reset})"
 				echo ""
 
-				jsonOut+="{\"names\": [ \"$cleanName\" ],"
+				jsonOut+="{\"names\": \"$cleanName\","
 				jsonOut+="\"email\": \"$name\","
 				jsonOut+="\"committs\": \"$cleanCommitts\","
 				jsonOut+="\"committsPercent\": \"$perCommitts\","
