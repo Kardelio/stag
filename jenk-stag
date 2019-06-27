@@ -4,7 +4,7 @@
 #
 IFS=$'\n\t'
 
-excludeFileTypes="\.(plist|xib|storyboard|h|ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
+excludeFileTypes="\.(jpg|plist|xib|storyboard|h|ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
 
 answerColor="\033[35m"
 titleColor="\033[37;44m"
