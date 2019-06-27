@@ -4,7 +4,7 @@
 #
 IFS=$'\n\t'
 
-excludeFileTypes="\.(ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
+excludeFileTypes="\.(plist|xib|storyboard|h|ico|properties|json|pro|ttf|dat|png|txt|jar|bat|jks|keystore)$"
 
 answerColor="\033[35m"
 titleColor="\033[37;44m"
@@ -47,11 +47,14 @@ if [[ ! -z "$cddir" ]]; then
 	if [[ "$ostype" == "android" ]]; then
 		cd "$cddir@2/$andDir"
 		jsonFile="$HOME/$andDir.stag.json"
+		focusPath="^app/src/main/java/"
 	elif [[ "$ostype" == "ios" ]]; then
 		cd "$cddir@2/$iosDir"
 		jsonFile="$HOME/$iosDir.stag.json"
+		focusPath="^very/"
 	else
 		echo "ERROR"
+		exit 1
 	fi
 fi
 
@@ -59,9 +62,9 @@ res=$(find . -name ".git" -maxdepth 1)
 if [[ ! -z $res ]];then
 	jsonOut="{"
 
-	numberOfFiles=$(git ls-files | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
-	gitFiles=$(git ls-files | grep -vE "${excludeFileTypes}")
-	numberOfExcludedFiles=$(git ls-files | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || echo -n "")
+	numberOfFiles=$(git ls-files | grep "$focusPath" | grep -vE "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g')
+	gitFiles=$(git ls-files  | grep "$focusPath"| grep -vE "${excludeFileTypes}")
+	numberOfExcludedFiles=$(git ls-files | grep "$focusPath" | grep -E "${excludeFileTypes}" | wc -l | sed 's/[[:space:]]//g' || echo -n "")
 	numberOfCommittsTotal=$(git rev-list --count HEAD)
 
 	jsonOut+="\"branch\":\"$branch\","
